@@ -306,8 +306,8 @@ public final class MainActivity extends AppCompatActivity implements
 
     private void applyConfigurationToEntries() {
         for (AppEntry entry : adapter.getEntries()) {
-            entry.scoped = scopedPackages.contains(entry.packageName);
-            entry.mode = ModuleConfig.readMode(preferences, entry.packageName);
+            entry.enabled = scopedPackages.contains(entry.packageName)
+                    && ModuleConfig.readEnabled(preferences, entry.packageName);
         }
         adapter.setControlsEnabled(service != null && preferences != null);
         adapter.refresh();
@@ -318,7 +318,7 @@ public final class MainActivity extends AppCompatActivity implements
     private void updateAppSummary() {
         int enabledCount = 0;
         for (AppEntry entry : adapter.getEntries()) {
-            if (entry.scoped) {
+            if (entry.enabled) {
                 enabledCount++;
             }
         }
@@ -331,29 +331,6 @@ public final class MainActivity extends AppCompatActivity implements
     }
 
     @Override
-    public void onModeChanged(AppEntry entry, int mode) {
-        SharedPreferences currentPreferences = preferences;
-        if (currentPreferences == null) {
-            adapter.refresh();
-            Toast.makeText(this, R.string.scope_service_unavailable, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        int oldMode = entry.mode;
-        int newMode = ModuleConfig.normalizeMode(mode);
-        entry.mode = newMode;
-        try {
-            currentPreferences.edit()
-                    .putInt(ModuleConfig.modeKey(entry.packageName), newMode)
-                    .apply();
-        } catch (RuntimeException error) {
-            entry.mode = oldMode;
-            Toast.makeText(this, R.string.config_write_failed, Toast.LENGTH_SHORT).show();
-        }
-        adapter.refresh();
-    }
-
-    @Override
     public void onScopeChanged(AppEntry entry, boolean enabled) {
         XposedService currentService = service;
         SharedPreferences currentPreferences = preferences;
@@ -363,48 +340,45 @@ public final class MainActivity extends AppCompatActivity implements
             return;
         }
 
-        adapter.setPending(entry.packageName, true);
-        if (enabled) {
+        // Scope controls injection, while this preference controls live visibility.
+        // Retain scope when disabled so re-enabling also works in an already running process.
+        if (!enabled || scopedPackages.contains(entry.packageName)) {
             try {
-                currentPreferences.edit()
-                        .putInt(ModuleConfig.modeKey(entry.packageName), entry.mode)
-                        .apply();
-                currentService.requestScope(
-                        Collections.singletonList(entry.packageName),
-                        new XposedService.OnScopeEventListener() {
-                            @Override
-                            public void onScopeRequestApproved(List<String> approved) {
-                                mainHandler.post(() -> completeScopeRequest(
-                                        currentService,
-                                        entry.packageName,
-                                        approved
-                                ));
-                            }
+                if (!currentPreferences.edit()
+                        .putBoolean(ModuleConfig.enabledKey(entry.packageName), enabled).commit()) {
+                    throw new IllegalStateException("Configuration commit failed");
+                }
+            } catch (RuntimeException error) {
+                Toast.makeText(this, R.string.config_write_failed, Toast.LENGTH_SHORT).show();
+            }
+            applyConfigurationToEntries();
+            return;
+        }
 
-                            @Override
-                            public void onScopeRequestFailed(String message) {
-                                mainHandler.post(() -> failScopeRequest(
-                                        currentService,
-                                        entry.packageName,
-                                        message
-                                ));
-                            }
+        adapter.setPending(entry.packageName, true);
+        try {
+            // Persist intent before requesting scope. Approval may arrive after Activity recreation.
+            // No hook runs in a new target until the framework approves and injects the module.
+            if (!currentPreferences.edit()
+                    .putBoolean(ModuleConfig.enabledKey(entry.packageName), true).commit()) {
+                throw new IllegalStateException("Configuration commit failed");
+            }
+            currentService.requestScope(Collections.singletonList(entry.packageName),
+                    new XposedService.OnScopeEventListener() {
+                        @Override
+                        public void onScopeRequestApproved(List<String> approved) {
+                            mainHandler.post(() -> completeScopeRequest(
+                                    currentService, entry.packageName, approved));
                         }
-                );
-            } catch (RuntimeException error) {
-                failScopeRequest(currentService, entry.packageName, error.getLocalizedMessage());
-            }
-        } else {
-            try {
-                currentService.removeScope(Collections.singletonList(entry.packageName));
-                scopedPackages.remove(entry.packageName);
-                adapter.setPending(entry.packageName, false);
-                applyConfigurationToEntries();
-            } catch (RuntimeException error) {
-                adapter.setPending(entry.packageName, false);
-                adapter.refresh();
-                Toast.makeText(this, R.string.scope_remove_failed, Toast.LENGTH_SHORT).show();
-            }
+
+                        @Override
+                        public void onScopeRequestFailed(String message) {
+                            mainHandler.post(() -> failScopeRequest(
+                                    currentService, entry.packageName, message));
+                        }
+                    });
+        } catch (RuntimeException error) {
+            failScopeRequest(currentService, entry.packageName, error.getLocalizedMessage());
         }
     }
 
@@ -421,7 +395,11 @@ public final class MainActivity extends AppCompatActivity implements
             scopedPackages.clear();
             scopedPackages.addAll(nonNullPackages(requestService.getScope()));
         } catch (RuntimeException error) {
-            scopedPackages.addAll(nonNullPackages(approved));
+            // The approval result below remains authoritative if the scope query fails or lags.
+        }
+        scopedPackages.addAll(nonNullPackages(approved));
+        if (scopedPackages.contains(packageName)) {
+            Toast.makeText(this, R.string.first_enable_hint, Toast.LENGTH_LONG).show();
         }
         adapter.setPending(packageName, false);
         applyConfigurationToEntries();

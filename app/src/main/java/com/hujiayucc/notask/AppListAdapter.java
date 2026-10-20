@@ -9,9 +9,8 @@ import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.DiffUtil;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.text.Collator;
@@ -24,8 +23,6 @@ import java.util.Set;
 final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolder> {
     interface Listener {
         void onScopeChanged(AppEntry entry, boolean enabled);
-
-        void onModeChanged(AppEntry entry, int mode);
     }
 
     private final Context context;
@@ -41,7 +38,6 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
     AppListAdapter(Context context, Listener listener) {
         this.context = context;
         this.listener = listener;
-        setHasStableIds(true);
     }
 
     void setEntries(List<AppEntry> newEntries) {
@@ -59,8 +55,11 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
     }
 
     void setControlsEnabled(boolean enabled) {
+        if (controlsEnabled == enabled) {
+            return;
+        }
         controlsEnabled = enabled;
-        notifyDataSetChanged();
+        notifyItemRangeChanged(0, visibleEntries.size());
     }
 
     void setPending(String packageName, boolean pending) {
@@ -86,8 +85,9 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
     }
 
     private void rebuildVisibleEntries() {
+        List<AppEntry> oldVisible = new ArrayList<>(visibleEntries);
         entries.sort((left, right) -> {
-            int scopeResult = Boolean.compare(!left.scoped, !right.scoped);
+            int scopeResult = Boolean.compare(!left.enabled, !right.enabled);
             if (scopeResult != 0) {
                 return scopeResult;
             }
@@ -102,12 +102,17 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
                 visibleEntries.add(entry);
             }
         }
-        notifyDataSetChanged();
-    }
-
-    @Override
-    public long getItemId(int position) {
-        return visibleEntries.get(position).packageName.hashCode();
+        DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override public int getOldListSize() { return oldVisible.size(); }
+            @Override public int getNewListSize() { return visibleEntries.size(); }
+            @Override public boolean areItemsTheSame(int oldPosition, int newPosition) {
+                return oldVisible.get(oldPosition).packageName.equals(visibleEntries.get(newPosition).packageName);
+            }
+            @Override public boolean areContentsTheSame(int oldPosition, int newPosition) {
+                // Entries are mutable; rebinding also reflects pending/connection state changes.
+                return false;
+            }
+        }).dispatchUpdatesTo(this);
     }
 
     @Override
@@ -128,26 +133,12 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
         holder.name.setText(entry.label);
         holder.packageName.setText(entry.packageName);
         holder.scopeSwitch.setContentDescription(context.getString(R.string.enable_app, entry.label));
-        holder.scopeSwitch.setChecked(entry.scoped);
+        holder.scopeSwitch.setChecked(entry.enabled);
         holder.scopeSwitch.setEnabled(enabled);
 
-        int selectedButton = entry.mode == ModuleConfig.MODE_BACKGROUND
-                ? R.id.mode_background
-                : R.id.mode_back;
-        holder.modeGroup.check(selectedButton);
-        holder.modeBack.setEnabled(enabled);
-        holder.modeBackground.setEnabled(enabled);
-
-        if (!entry.scoped) {
-            holder.state.setText(R.string.app_disabled);
-            holder.state.setTextColor(ContextCompat.getColor(context, R.color.on_surface_variant));
-        } else if (entry.mode == ModuleConfig.MODE_BACKGROUND) {
-            holder.state.setText(R.string.app_enabled_background);
-            holder.state.setTextColor(ContextCompat.getColor(context, R.color.primary));
-        } else {
-            holder.state.setText(R.string.app_enabled_back);
-            holder.state.setTextColor(ContextCompat.getColor(context, R.color.primary));
-        }
+        holder.state.setText(entry.enabled ? R.string.app_enabled : R.string.app_disabled);
+        holder.state.setTextColor(ContextCompat.getColor(context,
+                entry.enabled ? R.color.primary : R.color.on_surface_variant));
         holder.binding = false;
     }
 
@@ -162,9 +153,6 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
         final TextView packageName;
         final TextView state;
         final MaterialSwitch scopeSwitch;
-        final MaterialButtonToggleGroup modeGroup;
-        final MaterialButton modeBack;
-        final MaterialButton modeBackground;
 
         boolean binding;
         AppEntry entry;
@@ -176,23 +164,12 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
             packageName = itemView.findViewById(R.id.app_package);
             state = itemView.findViewById(R.id.app_state);
             scopeSwitch = itemView.findViewById(R.id.scope_switch);
-            modeGroup = itemView.findViewById(R.id.mode_group);
-            modeBack = itemView.findViewById(R.id.mode_back);
-            modeBackground = itemView.findViewById(R.id.mode_background);
-
             scopeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (!binding && entry != null) {
                     listener.onScopeChanged(entry, isChecked);
                 }
             });
-            modeGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                if (!binding && isChecked && entry != null) {
-                    int mode = checkedId == R.id.mode_background
-                            ? ModuleConfig.MODE_BACKGROUND
-                            : ModuleConfig.MODE_BACK;
-                    listener.onModeChanged(entry, mode);
-                }
-            });
+
         }
     }
 }

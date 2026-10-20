@@ -7,8 +7,7 @@ final class AppEntry {
     final String packageName;
     final Drawable icon;
 
-    boolean scoped;
-    int mode = ModuleConfig.MODE_BACK;
+    boolean enabled;
 
     AppEntry(String label, String packageName, Drawable icon) {
         this.label = label;

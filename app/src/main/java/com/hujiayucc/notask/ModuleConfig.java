@@ -4,30 +4,23 @@ import android.content.SharedPreferences;
 
 public final class ModuleConfig {
     public static final String PREFERENCES_NAME = "config";
-    public static final int MODE_BACK = 1;
-    public static final int MODE_BACKGROUND = 2;
+    private static final String ENABLED_KEY_PREFIX = "hide_enabled.";
 
-    private static final String MODE_KEY_PREFIX = "hide_mode.";
+    private ModuleConfig() {}
 
-    private ModuleConfig() {
+    public static String enabledKey(String packageName) {
+        return ENABLED_KEY_PREFIX + packageName;
     }
 
-    public static String modeKey(String packageName) {
-        return MODE_KEY_PREFIX + packageName;
-    }
-
-    public static int normalizeMode(int mode) {
-        return mode == MODE_BACKGROUND ? MODE_BACKGROUND : MODE_BACK;
-    }
-
-    public static int readMode(SharedPreferences preferences, String packageName) {
+    /** Existing scoped apps migrate from the old timing modes to always hidden. */
+    public static boolean readEnabled(SharedPreferences preferences, String packageName) {
         if (preferences == null) {
-            return MODE_BACK;
+            return true;
         }
         try {
-            return normalizeMode(preferences.getInt(modeKey(packageName), MODE_BACK));
+            return preferences.getBoolean(enabledKey(packageName), true);
         } catch (RuntimeException ignored) {
-            return MODE_BACK;
+            return true;
         }
     }
 }
