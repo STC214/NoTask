@@ -19,3 +19,8 @@ backup/
 .backup/
 .operit/
 /dist/
+/signing/
+*.keystore
+*.jks
+*.p12
+*.pfx

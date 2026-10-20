@@ -19,22 +19,28 @@ try {
         Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } |
         Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
     if (!$tools) { throw 'Android build-tools missing' }
-    $androidUserHome = $env:ANDROID_USER_HOME
-    if (!$androidUserHome) { $androidUserHome = Join-Path $env:USERPROFILE '.android' }
-    $key = Join-Path $androidUserHome 'debug.keystore'
-    if (!(Test-Path -LiteralPath $key)) { throw 'Debug keystore missing; build assembleDebug first' }
+    $key = $env:NOTASK_RELEASE_KEYSTORE
+    if (!$key) { $key = Join-Path $root 'signing/notask-release.keystore' }
+    if (!(Test-Path -LiteralPath $key)) { throw 'Release keystore missing; restore the designated key or set NOTASK_RELEASE_KEYSTORE' }
+    $expectedCertificate = (Get-Content (Join-Path $root 'config/release-certificate.sha256') -Raw).Trim().ToLowerInvariant()
+    if ($expectedCertificate -notmatch '^[0-9a-f]{64}$') { throw 'Release certificate pin is invalid' }
     $metadata = Get-Content 'app/build/outputs/apk/release/output-metadata.json' -Raw | ConvertFrom-Json
     $version = $metadata.elements[0].versionName
     $aligned = Join-Path $dist 'release-aligned-unsigned.apk'
-    $signed = Join-Path $dist "NoTask-$version-release-test-signed.apk"
+    $signed = Join-Path $dist "NoTask-$version-release.apk"
     & (Join-Path $tools.FullName 'zipalign.exe') -P 16 -f 4 'app/build/outputs/apk/release/app-release-unsigned.apk' $aligned
     if ($LASTEXITCODE -ne 0) { throw 'ZIP alignment failed' }
-    # Optimized Release code, explicitly signed with the local Android test key.
-    # Never commit a private signing key or use this test certificate for production identity.
+    # This existing certificate is the project-designated release identity.
+    # Keep the private key outside Git and reject any certificate change.
     & cmd.exe /d /c "`"$($tools.FullName)\apksigner.bat`" sign --ks `"$key`" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out `"$signed`" `"$aligned`" > dist\signing.log 2>&1"
     if ($LASTEXITCODE -ne 0) { throw 'APK signing failed' }
-    & cmd.exe /d /c "`"$($tools.FullName)\apksigner.bat`" verify --verbose `"$signed`" > dist\signature-verification.log 2>&1"
+    & cmd.exe /d /c "`"$($tools.FullName)\apksigner.bat`" verify --verbose --print-certs `"$signed`" > dist\signature-verification.log 2>&1"
     if ($LASTEXITCODE -ne 0) { throw 'APK signature verification failed' }
+    $certificateReport = Get-Content (Join-Path $dist 'signature-verification.log') -Raw
+    $certificate = [regex]::Match($certificateReport, 'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})')
+    if (!$certificate.Success -or $certificate.Groups[1].Value.ToLowerInvariant() -ne $expectedCertificate) {
+        throw 'APK certificate differs from the pinned release identity'
+    }
     & (Join-Path $tools.FullName 'zipalign.exe') -c -P 16 4 $signed
     if ($LASTEXITCODE -ne 0) { throw 'Signed APK alignment check failed' }
     & python (Join-Path $PSScriptRoot 'verify-apk.py') $signed

@@ -34,7 +34,9 @@ Android 8.0+，Java 17+，Android SDK 37。标准 Android SDK 环境使用 `grad
 
 Windows 下可运行 `powershell -File scripts/package.ps1`，执行单元测试、Debug/Release Lint、双版本构建、16 KB ZIP 对齐、签名与压缩后模块入口检查。输出位于 `dist/`，附带 SHA-256 校验值。
 
-`release-test-signed.apk` 是 R8 优化后的 Release 代码，使用本机 Android 测试证书签名，仅用于测试分发；正式发布应使用独立保管的发布密钥。它与其他证书签名的安装包不兼容覆盖安装。私钥和生成的 APK 不进入源码提交。
+`NoTask-版本-release.apk` 为正式发行包，沿用已分发版本的现有证书，签名身份不变。证书公开指纹固定在 `config/release-certificate.sha256`，打包后会核对，避免误换密钥造成升级冲突。
+
+发行私钥保存在项目的 `signing/notask-release.keystore`，也可通过 `NOTASK_RELEASE_KEYSTORE` 指定路径。`signing/` 和常见密钥扩展名已加入 Git 排除；请另行离线备份。私钥不进入 Git，缺失时打包会报错，不会自动生成新发行身份。此证书来源于先前的 Android Debug 证书，现指定为本项目发行身份，其证书主题及指纹保持原样。
 
 ## License
 
