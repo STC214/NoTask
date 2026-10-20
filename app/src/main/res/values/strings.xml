@@ -1,5 +1,11 @@
 <resources>
     <string name="app_name">NoTask</string>
+    <string name="toolbar_subtitle">最近任务，留白一点</string>
+    <string name="control_center">控制中心</string>
+    <string name="appearance_title">界面外观</string>
+    <string name="theme_system">系统</string>
+    <string name="theme_light">亮色</string>
+    <string name="theme_dark">暗色</string>
     <string name="app_description">按应用配置最近任务隐藏方式</string>
     <string name="module_active">模块已激活</string>
     <string name="module_inactive">模块未激活</string>

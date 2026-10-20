@@ -9,9 +9,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.Window;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.Collections;
@@ -48,7 +47,7 @@ public final class MainActivity extends AppCompatActivity implements
     private final Set<String> scopedPackages = new HashSet<>();
 
     private MaterialCardView statusPanel;
-    private ImageView statusIcon;
+    private TextView statusBadge;
     private TextView statusTitle;
     private TextView statusDetail;
     private TextView appCount;
@@ -112,15 +111,12 @@ public final class MainActivity extends AppCompatActivity implements
 
     private void applySystemBarInsets(
             View root,
-            MaterialToolbar toolbar,
             RecyclerView appList
     ) {
         int rootPaddingLeft = root.getPaddingLeft();
         int rootPaddingTop = root.getPaddingTop();
         int rootPaddingRight = root.getPaddingRight();
         int rootPaddingBottom = root.getPaddingBottom();
-        int toolbarHeight = toolbar.getLayoutParams().height;
-        int toolbarPaddingTop = toolbar.getPaddingTop();
         int listPaddingBottom = appList.getPaddingBottom();
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, windowInsets) -> {
@@ -130,28 +126,17 @@ public final class MainActivity extends AppCompatActivity implements
             );
             view.setPadding(
                     rootPaddingLeft + systemBars.left,
-                    rootPaddingTop,
+                    rootPaddingTop + systemBars.top,
                     rootPaddingRight + systemBars.right,
                     rootPaddingBottom
             );
 
-            ViewGroup.LayoutParams layoutParams = toolbar.getLayoutParams();
-            int insetToolbarHeight = toolbarHeight + systemBars.top;
-            if (layoutParams.height != insetToolbarHeight) {
-                layoutParams.height = insetToolbarHeight;
-                toolbar.setLayoutParams(layoutParams);
-            }
-            toolbar.setPadding(
-                    toolbar.getPaddingLeft(),
-                    toolbarPaddingTop + systemBars.top,
-                    toolbar.getPaddingRight(),
-                    toolbar.getPaddingBottom()
-            );
+            int keyboardBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
             appList.setPadding(
                     appList.getPaddingLeft(),
                     appList.getPaddingTop(),
                     appList.getPaddingRight(),
-                    listPaddingBottom + systemBars.bottom
+                    listPaddingBottom + Math.max(systemBars.bottom, keyboardBottom)
             );
             return windowInsets;
         });
@@ -162,9 +147,10 @@ public final class MainActivity extends AppCompatActivity implements
         View root = findViewById(R.id.root);
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        initializeAppearance();
 
         statusPanel = findViewById(R.id.status_panel);
-        statusIcon = findViewById(R.id.status_icon);
+        statusBadge = findViewById(R.id.status_badge);
         statusTitle = findViewById(R.id.status_title);
         statusDetail = findViewById(R.id.status_detail);
         TextView statusVersion = findViewById(R.id.status_version);
@@ -182,7 +168,7 @@ public final class MainActivity extends AppCompatActivity implements
         appList.setLayoutManager(new LinearLayoutManager(this));
         adapter = new AppListAdapter(this, this);
         appList.setAdapter(adapter);
-        applySystemBarInsets(root, toolbar, appList);
+        applySystemBarInsets(root, appList);
 
         TextInputEditText searchInput = findViewById(R.id.search_input);
         searchInput.addTextChangedListener(new TextWatcher() {
@@ -203,6 +189,21 @@ public final class MainActivity extends AppCompatActivity implements
 
         showInactiveStatus();
         updateAppSummary();
+    }
+
+    private void initializeAppearance() {
+        MaterialButtonToggleGroup group = findViewById(R.id.theme_group);
+        int mode = ThemePreferences.read(this);
+        group.check(mode == ThemePreferences.LIGHT ? R.id.theme_light
+                : mode == ThemePreferences.DARK ? R.id.theme_dark : R.id.theme_system);
+        group.addOnButtonCheckedListener((buttons, checkedId, checked) -> {
+            if (!checked) return;
+            int selected = checkedId == R.id.theme_light ? ThemePreferences.LIGHT
+                    : checkedId == R.id.theme_dark ? ThemePreferences.DARK : ThemePreferences.SYSTEM;
+            if (selected != ThemePreferences.read(this)) {
+                ThemePreferences.select(this, selected);
+            }
+        });
     }
 
     private void loadApps() {
@@ -288,7 +289,7 @@ public final class MainActivity extends AppCompatActivity implements
 
     private void showActiveStatus(String frameworkName, int apiVersion, boolean supportsRemote) {
         statusPanel.setCardBackgroundColor(ContextCompat.getColor(this, R.color.status_active_container));
-        statusIcon.setImageResource(R.drawable.ic_status_active);
+        statusBadge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_status_active, 0, 0, 0);
         statusTitle.setText(R.string.module_active);
         if (supportsRemote) {
             statusDetail.setText(getString(R.string.module_active_detail, frameworkName, apiVersion));
@@ -299,7 +300,7 @@ public final class MainActivity extends AppCompatActivity implements
 
     private void showInactiveStatus() {
         statusPanel.setCardBackgroundColor(ContextCompat.getColor(this, R.color.status_inactive_container));
-        statusIcon.setImageResource(R.drawable.ic_status_inactive);
+        statusBadge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_status_inactive, 0, 0, 0);
         statusTitle.setText(R.string.module_inactive);
         statusDetail.setText(R.string.module_inactive_detail);
     }

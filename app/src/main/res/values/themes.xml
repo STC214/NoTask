@@ -11,6 +11,8 @@
         <item name="colorOnSecondaryContainer">@color/on_secondary_container</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorSurfaceContainer">@color/surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/card_surface</item>
+        <item name="android:windowBackground">@color/surface</item>
         <item name="colorOnSurface">@color/on_surface</item>
         <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
         <item name="colorOutline">@color/outline</item>

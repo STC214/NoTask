@@ -21,6 +21,7 @@ public final class NoTaskApplication extends Application implements XposedServic
     @Override
     public void onCreate() {
         super.onCreate();
+        ThemePreferences.apply(this);
         XposedServiceHelper.registerListener(this);
     }
 

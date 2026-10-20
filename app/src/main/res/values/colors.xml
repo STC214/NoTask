@@ -1,21 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#086F6B</color>
+    <color name="primary">#385E86</color>
     <color name="on_primary">#FFFFFF</color>
-    <color name="primary_container">#D7F1ED</color>
-    <color name="on_primary_container">#073F3C</color>
-    <color name="secondary">#A45117</color>
+    <color name="primary_container">#DEEBF7</color>
+    <color name="on_primary_container">#173B60</color>
+    <color name="secondary">#80602A</color>
     <color name="on_secondary">#FFFFFF</color>
-    <color name="secondary_container">#FFE2C3</color>
-    <color name="on_secondary_container">#3D1A00</color>
-    <color name="surface">#F7FAF9</color>
-    <color name="surface_container">#EDF3F1</color>
-    <color name="on_surface">#18211F</color>
-    <color name="on_surface_variant">#52615E</color>
-    <color name="outline">#73827F</color>
-    <color name="divider">#D9E4E1</color>
-    <color name="status_active">#086F6B</color>
-    <color name="status_active_container">#D7F1ED</color>
-    <color name="status_inactive">#9B4A0E</color>
-    <color name="status_inactive_container">#FFE5C8</color>
+    <color name="secondary_container">#F6E7CA</color>
+    <color name="on_secondary_container">#493613</color>
+    <color name="surface">#F5F7FB</color>
+    <color name="surface_container">#E9EEF5</color>
+    <color name="on_surface">#1B2838</color>
+    <color name="on_surface_variant">#576579</color>
+    <color name="outline">#77869A</color>
+    <color name="divider">#DFE6EF</color>
+    <color name="status_active">#315F8A</color>
+    <color name="status_active_container">#E2EDF9</color>
+    <color name="status_inactive">#8A6024</color>
+    <color name="status_inactive_container">#FFF0D6</color>
+    <color name="card_surface">#FFFFFF</color>
+    <color name="row_enabled">#EDF4FD</color>
+    <color name="row_outline">#B8CCE3</color>
+    <color name="badge_surface">#E3EBF6</color>
 </resources>

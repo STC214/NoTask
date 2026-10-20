@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.card.MaterialCardView;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -129,6 +130,10 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
 
         holder.binding = true;
         holder.entry = entry;
+        holder.card.setCardBackgroundColor(ContextCompat.getColor(context,
+                entry.enabled ? R.color.row_enabled : R.color.card_surface));
+        holder.card.setStrokeColor(ContextCompat.getColor(context,
+                entry.enabled ? R.color.row_outline : R.color.divider));
         holder.icon.setImageDrawable(entry.icon);
         holder.name.setText(entry.label);
         holder.packageName.setText(entry.packageName);
@@ -148,6 +153,7 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
     }
 
     final class ViewHolder extends RecyclerView.ViewHolder {
+        final MaterialCardView card;
         final ImageView icon;
         final TextView name;
         final TextView packageName;
@@ -159,6 +165,7 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
 
         ViewHolder(View itemView) {
             super(itemView);
+            card = (MaterialCardView) itemView;
             icon = itemView.findViewById(R.id.app_icon);
             name = itemView.findViewById(R.id.app_name);
             packageName = itemView.findViewById(R.id.app_package);

@@ -6,6 +6,9 @@ try {
     $dist = Join-Path $root 'dist'
     New-Item -ItemType Directory -Force -Path $dist | Out-Null
     if (!$SkipBuild) {
+        if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'build-icons.ps1')) {
+            & (Join-Path $PSScriptRoot 'build-icons.ps1')
+        }
         & cmd.exe /d /c '.\gradlew.bat testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --console=plain > dist\build.log 2>&1'
         if ($LASTEXITCODE -ne 0) { throw 'Build or checks failed; see dist/build.log' }
     }
