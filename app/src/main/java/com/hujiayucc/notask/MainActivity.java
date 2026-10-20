@@ -309,6 +309,7 @@ public final class MainActivity extends AppCompatActivity implements
         for (AppEntry entry : adapter.getEntries()) {
             entry.enabled = scopedPackages.contains(entry.packageName)
                     && ModuleConfig.readEnabled(preferences, entry.packageName);
+            entry.mode = ModuleConfig.readMode(preferences, entry.packageName);
         }
         adapter.setControlsEnabled(service != null && preferences != null);
         adapter.refresh();
@@ -329,6 +330,24 @@ public final class MainActivity extends AppCompatActivity implements
     private void updateEmptyState() {
         boolean empty = appsLoaded && adapter.getVisibleCount() == 0;
         emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+    }
+
+    @Override
+    public void onModeChanged(AppEntry entry, int mode) {
+        SharedPreferences current = preferences;
+        if (current == null) {
+            adapter.refresh();
+            return;
+        }
+        try {
+            if (!current.edit().putInt(ModuleConfig.modeKey(entry.packageName),
+                    ModuleConfig.normalizeMode(mode)).commit()) {
+                throw new IllegalStateException("Mode commit failed");
+            }
+        } catch (RuntimeException error) {
+            Toast.makeText(this, R.string.config_write_failed, Toast.LENGTH_SHORT).show();
+        }
+        applyConfigurationToEntries();
     }
 
     @Override

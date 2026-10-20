@@ -8,6 +8,7 @@ final class AppEntry {
     final Drawable icon;
 
     boolean enabled;
+    int mode = ModuleConfig.MODE_DIRECT;
 
     AppEntry(String label, String packageName, Drawable icon) {
         this.label = label;

@@ -2,9 +2,11 @@ package com.hujiayucc.notask;
 
 import android.app.ActivityManager;
 import android.app.Application;
+import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
+import android.view.KeyEvent;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Executable;
@@ -31,11 +33,16 @@ public class MainHookTest {
     private ActivityManager manager;
     private ActivityManager.AppTask first;
     private ActivityManager.AppTask second;
+    private final java.util.concurrent.atomic.AtomicInteger mode =
+            new java.util.concurrent.atomic.AtomicInteger(ModuleConfig.MODE_DIRECT);
+    private final List<Runnable> delayed = new ArrayList<>();
 
     @Before public void setUp() throws Exception {
         preferences = mock(SharedPreferences.class);
         when(preferences.getBoolean(eq(ModuleConfig.enabledKey("example.app")), anyBoolean()))
                 .thenAnswer(invocation -> enabled.get());
+        when(preferences.getInt(eq(ModuleConfig.modeKey("example.app")), anyInt()))
+                .thenAnswer(invocation -> mode.get());
         framework = mock(XposedInterface.class);
         when(framework.getRemotePreferences(ModuleConfig.PREFERENCES_NAME)).thenReturn(preferences);
         hook = new MainHook();
@@ -54,9 +61,20 @@ public class MainHookTest {
             return true;
         });
         set("mainHandler", handler);
+        when(handler.postDelayed(any(Runnable.class), anyLong())).thenAnswer(invocation -> {
+            delayed.add(invocation.getArgument(0)); return true;
+        });
+        doAnswer(invocation -> { delayed.remove(invocation.getArgument(0)); return null; })
+                .when(handler).removeCallbacks(any(Runnable.class));
         manager = mock(ActivityManager.class);
         first = mock(ActivityManager.AppTask.class);
         second = mock(ActivityManager.AppTask.class);
+        ActivityManager.RecentTaskInfo firstInfo = mock(ActivityManager.RecentTaskInfo.class);
+        firstInfo.taskId = 17; firstInfo.persistentId = 17;
+        ActivityManager.RecentTaskInfo secondInfo = mock(ActivityManager.RecentTaskInfo.class);
+        secondInfo.taskId = 18; secondInfo.persistentId = 18;
+        when(first.getTaskInfo()).thenReturn(firstInfo);
+        when(second.getTaskInfo()).thenReturn(secondInfo);
         when(manager.getAppTasks()).thenReturn(Arrays.asList(first, second));
         Context context = mock(Context.class);
         when(context.getApplicationContext()).thenReturn(context);
@@ -168,6 +186,107 @@ public class MainHookTest {
         ArgumentCaptor<XposedInterface.Hooker> captor = ArgumentCaptor.forClass(XposedInterface.Hooker.class);
         verify(builder).intercept(captor.capture());
         return captor.getValue();
+    }
+
+    @Test public void modeNotificationImmediatelyReconcilesExistingTasks() throws Exception {
+        change(true); drain(); clearInvocations(first, second);
+        Activity activity = mock(Activity.class); when(activity.getTaskId()).thenReturn(17);
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
+        mode.set(ModuleConfig.MODE_BACK);
+        listener.onSharedPreferenceChanged(preferences, ModuleConfig.modeKey("example.app")); drain();
+        verify(first).setExcludeFromRecents(false);
+        mode.set(ModuleConfig.MODE_DIRECT);
+        listener.onSharedPreferenceChanged(preferences, ModuleConfig.modeKey("example.app")); drain();
+        verify(first).setExcludeFromRecents(true);
+    }
+
+    @Test public void rootBackHidesOnlyInBackMode() throws Exception {
+        Activity activity = mock(Activity.class); when(activity.isTaskRoot()).thenReturn(true);
+        when(activity.getTaskId()).thenReturn(17);
+        mode.set(ModuleConfig.MODE_BACK); change(true); drain(); clearInvocations(first, second);
+        call("handleBack", new Class<?>[] {Activity.class}, activity);
+        verify(first).setExcludeFromRecents(true);
+    }
+
+    @Test public void backgroundTimerAndForegroundCancellationReachRealTaskService() throws Exception {
+        Activity activity = mock(Activity.class);
+        when(activity.getTaskId()).thenReturn(17);
+        mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onPause");
+        org.junit.Assert.assertEquals(1, delayed.size());
+        Runnable pending = delayed.get(0); pending.run();
+        verify(first).setExcludeFromRecents(true);
+        clearInvocations(first, second);
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
+        call("applyVisibility", new Class<?>[] {String.class}, "resumed");
+        verify(first).setExcludeFromRecents(false);
+        clearInvocations(first, second);
+        pending.run();
+        verify(first, never()).setExcludeFromRecents(true);
+    }
+
+    @Test public void configurationChangeDoesNotScheduleBackgroundHide() throws Exception {
+        Activity activity = mock(Activity.class); when(activity.isChangingConfigurations()).thenReturn(true);
+        mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onPause");
+        org.junit.Assert.assertTrue(delayed.isEmpty());
+    }
+
+    @Test public void keyBackHookHidesBeforeOriginalAndDoesNotConsumeIt() throws Throwable {
+        mode.set(ModuleConfig.MODE_BACK); change(true); drain(); clearInvocations(first, second);
+        XposedInterface.HookBuilder builder = mock(XposedInterface.HookBuilder.class, RETURNS_SELF);
+        when(framework.hook(any(Executable.class))).thenReturn(builder);
+        call("registerBackHook", new Class<?>[] {String.class, Class[].class},
+                "onKeyDown", new Class<?>[] {int.class, KeyEvent.class});
+        ArgumentCaptor<XposedInterface.Hooker> captor = ArgumentCaptor.forClass(XposedInterface.Hooker.class);
+        verify(builder).intercept(captor.capture());
+        Activity activity = mock(Activity.class); when(activity.isTaskRoot()).thenReturn(true);
+        when(activity.getTaskId()).thenReturn(17);
+        KeyEvent event = mock(KeyEvent.class); when(event.getKeyCode()).thenReturn(KeyEvent.KEYCODE_BACK);
+        when(event.getAction()).thenReturn(KeyEvent.ACTION_DOWN);
+        XposedInterface.Chain chain = mock(XposedInterface.Chain.class);
+        when(chain.getThisObject()).thenReturn(activity); when(chain.getArg(1)).thenReturn(event);
+        when(chain.proceed()).thenReturn(Boolean.FALSE);
+        org.junit.Assert.assertEquals(Boolean.FALSE, captor.getValue().intercept(chain));
+        org.mockito.InOrder order = inOrder(first, chain);
+        order.verify(first).setExcludeFromRecents(true); order.verify(chain).proceed();
+    }
+
+    @Test public void childActivityBackDoesNotHideTasks() throws Exception {
+        mode.set(ModuleConfig.MODE_BACK); change(true); drain(); clearInvocations(first, second);
+        Activity child = mock(Activity.class); when(child.isTaskRoot()).thenReturn(false);
+        when(child.getTaskId()).thenReturn(17);
+        call("handleBack", new Class<?>[] {Activity.class}, child);
+        verify(first, never()).setExcludeFromRecents(true);
+        verify(first).setExcludeFromRecents(false);
+    }
+
+    @Test public void serviceOnlyProcessDoesNotUnhideOtherProcessTimedTasks() {
+        enabled.set(true);
+        for (int timingMode : new int[] {ModuleConfig.MODE_BACK, ModuleConfig.MODE_BACKGROUND}) {
+            mode.set(timingMode);
+            listener.onSharedPreferenceChanged(preferences, ModuleConfig.modeKey("example.app")); drain();
+        }
+        verify(first, never()).setExcludeFromRecents(anyBoolean());
+        verify(second, never()).setExcludeFromRecents(anyBoolean());
+    }
+
+    @Test public void disablingTimedModeRestoresAllTasksEvenWithoutLocalActivity() {
+        mode.set(ModuleConfig.MODE_BACK); change(true); drain();
+        change(false); drain();
+        verify(first).setExcludeFromRecents(false);
+        verify(second).setExcludeFromRecents(false);
+    }
+
+    @Test public void timedBackOnlyUpdatesTasksObservedInThisProcess() throws Exception {
+        mode.set(ModuleConfig.MODE_BACK); change(true); drain(); clearInvocations(first, second);
+        Activity activity = mock(Activity.class);
+        when(activity.getTaskId()).thenReturn(17); when(activity.isTaskRoot()).thenReturn(true);
+        call("handleBack", new Class<?>[] {Activity.class}, activity);
+        verify(first).setExcludeFromRecents(true);
+        verify(second, never()).setExcludeFromRecents(anyBoolean());
     }
 
     private void change(boolean value) {

@@ -25,6 +25,11 @@
     <string name="config_write_failed">配置保存失败</string>
     <string name="app_load_failed">应用列表载入失败</string>
     <string name="enable_app">启用 %1$s</string>
-    <string name="app_enabled">已启用 · 始终隐藏</string>
+    <string name="mode_back">返回键隐藏</string>
+    <string name="mode_background">进入后台隐藏</string>
+    <string name="mode_direct">直接隐藏</string>
+    <string name="app_enabled_back">已启用 · 返回键隐藏</string>
+    <string name="app_enabled_background">已启用 · 进入后台隐藏</string>
+    <string name="app_enabled_direct">已启用 · 直接隐藏</string>
     <string name="first_enable_hint">首次加入作用域：若目标应用已在运行，请重启该应用以加载模块；加载后开关实时生效</string>
 </resources>

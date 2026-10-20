@@ -13,6 +13,8 @@ import androidx.recyclerview.widget.DiffUtil;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.Set;
 final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolder> {
     interface Listener {
         void onScopeChanged(AppEntry entry, boolean enabled);
+        void onModeChanged(AppEntry entry, int mode);
     }
 
     private final Context context;
@@ -141,7 +144,15 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
         holder.scopeSwitch.setChecked(entry.enabled);
         holder.scopeSwitch.setEnabled(enabled);
 
-        holder.state.setText(entry.enabled ? R.string.app_enabled : R.string.app_disabled);
+        int selected = entry.mode == ModuleConfig.MODE_BACK ? R.id.mode_back
+                : entry.mode == ModuleConfig.MODE_BACKGROUND ? R.id.mode_background : R.id.mode_direct;
+        holder.modeGroup.check(selected);
+        holder.modeBack.setEnabled(enabled);
+        holder.modeBackground.setEnabled(enabled);
+        holder.modeDirect.setEnabled(enabled);
+        int state = entry.mode == ModuleConfig.MODE_BACK ? R.string.app_enabled_back
+                : entry.mode == ModuleConfig.MODE_BACKGROUND ? R.string.app_enabled_background : R.string.app_enabled_direct;
+        holder.state.setText(entry.enabled ? state : R.string.app_disabled);
         holder.state.setTextColor(ContextCompat.getColor(context,
                 entry.enabled ? R.color.primary : R.color.on_surface_variant));
         holder.binding = false;
@@ -159,6 +170,10 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
         final TextView packageName;
         final TextView state;
         final MaterialSwitch scopeSwitch;
+        final MaterialButtonToggleGroup modeGroup;
+        final MaterialButton modeBack;
+        final MaterialButton modeBackground;
+        final MaterialButton modeDirect;
 
         boolean binding;
         AppEntry entry;
@@ -171,9 +186,20 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
             packageName = itemView.findViewById(R.id.app_package);
             state = itemView.findViewById(R.id.app_state);
             scopeSwitch = itemView.findViewById(R.id.scope_switch);
+            modeGroup = itemView.findViewById(R.id.mode_group);
+            modeBack = itemView.findViewById(R.id.mode_back);
+            modeBackground = itemView.findViewById(R.id.mode_background);
+            modeDirect = itemView.findViewById(R.id.mode_direct);
             scopeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (!binding && entry != null) {
                     listener.onScopeChanged(entry, isChecked);
+                }
+            });
+            modeGroup.addOnButtonCheckedListener((group, id, checked) -> {
+                if (!binding && checked && entry != null) {
+                    int mode = id == R.id.mode_back ? ModuleConfig.MODE_BACK
+                            : id == R.id.mode_background ? ModuleConfig.MODE_BACKGROUND : ModuleConfig.MODE_DIRECT;
+                    listener.onModeChanged(entry, mode);
                 }
             });
 
