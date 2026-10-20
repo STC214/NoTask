@@ -144,7 +144,7 @@ public final class MainHook extends XposedModule {
             case "onDestroy": policy.onDestroy(activity); break;
             default: break;
         }
-        if ((event.equals("onPause") || event.equals("onStop") || event.equals("onDestroy"))
+        if ((event.equals("onStop") || event.equals("onDestroy"))
                 && policy.backgroundCandidate() && !activity.isChangingConfigurations()) {
             scheduleBackgroundHide();
         }

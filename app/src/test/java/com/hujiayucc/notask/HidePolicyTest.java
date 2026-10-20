@@ -24,7 +24,7 @@ public class HidePolicyTest {
         HidePolicy p = new HidePolicy(); Object a = new Object();
         p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onStart(a); p.onResume(a);
         p.onBack(true); assertFalse(p.shouldHide());
-        p.onPause(a); assertTrue(p.backgroundCandidate()); assertFalse(p.shouldHide());
+        p.onPause(a); p.onStop(a); assertTrue(p.backgroundCandidate()); assertFalse(p.shouldHide());
         p.confirmBackground(); assertTrue(p.shouldHide());
         p.onResume(a); assertFalse(p.shouldHide());
     }
@@ -40,7 +40,7 @@ public class HidePolicyTest {
         HidePolicy p = new HidePolicy(); Object a = new Object(), b = new Object();
         p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onResume(a); p.onResume(b);
         p.onPause(a); p.confirmBackground(); assertFalse(p.shouldHide());
-        p.onPause(b); p.confirmBackground(); assertTrue(p.shouldHide());
+        p.onPause(b); p.onStop(a); p.onStop(b); p.confirmBackground(); assertTrue(p.shouldHide());
     }
 
     @Test public void switchingFromDirectToTimedModesRestoresForegroundVisibility() {
@@ -66,7 +66,7 @@ public class HidePolicyTest {
 
     @Test public void switchingToBackClearsPreviouslyConfirmedBackgroundHide() {
         HidePolicy p = new HidePolicy(); Object a = new Object();
-        p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onResume(a); p.onPause(a); p.confirmBackground();
+        p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onResume(a); p.onPause(a); p.onStop(a); p.confirmBackground();
         assertTrue(p.shouldHide()); p.configure(true, ModuleConfig.MODE_BACK); assertFalse(p.shouldHide());
         p.confirmBackground(); assertFalse(p.shouldHide());
     }
@@ -80,5 +80,25 @@ public class HidePolicyTest {
         HidePolicy p = new HidePolicy(); Object a = new Object();
         p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onResume(a); p.onResume(a);
         p.onDestroy(a); p.confirmBackground(); assertTrue(p.shouldHide());
+    }
+
+    @Test public void pausedButVisibleActivityDoesNotCountAsBackground() {
+        HidePolicy p = new HidePolicy(); Object a = new Object();
+        p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onStart(a); p.onResume(a);
+        p.onPause(a); // Permission dialog or a translucent Activity covers the app.
+        assertFalse(p.backgroundCandidate()); p.confirmBackground(); assertFalse(p.shouldHide());
+    }
+
+    @Test public void selectingBackgroundWhilePausedButVisibleDoesNotHide() {
+        HidePolicy p = new HidePolicy(); Object a = new Object();
+        p.onStart(a); p.onResume(a); p.onPause(a);
+        p.configure(true, ModuleConfig.MODE_BACKGROUND); assertFalse(p.shouldHide());
+    }
+
+    @Test public void otherStartedButNotResumedActivityKeepsAppVisible() {
+        HidePolicy p = new HidePolicy(); Object a = new Object(), b = new Object();
+        p.configure(true, ModuleConfig.MODE_BACKGROUND); p.onStart(a); p.onResume(a);
+        p.onStart(b); p.onPause(a); p.onStop(a); p.confirmBackground();
+        assertFalse(p.shouldHide()); p.onStop(b); p.confirmBackground(); assertTrue(p.shouldHide());
     }
 }

@@ -190,6 +190,13 @@ final class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolde
             modeBack = itemView.findViewById(R.id.mode_back);
             modeBackground = itemView.findViewById(R.id.mode_background);
             modeDirect = itemView.findViewById(R.id.mode_direct);
+            // ToggleGroup forces one-line ellipsizing when adding children, after XML styles.
+            // Restore wrapping after inflation so large-font users can read every mode name.
+            for (MaterialButton button : new MaterialButton[] {modeBack, modeBackground, modeDirect}) {
+                button.setSingleLine(false);
+                button.setMaxLines(3);
+                button.setEllipsize(null);
+            }
             scopeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (!binding && entry != null) {
                     listener.onScopeChanged(entry, isChecked);

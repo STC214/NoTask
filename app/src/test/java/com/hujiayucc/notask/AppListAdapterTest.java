@@ -29,6 +29,11 @@ public class AppListAdapterTest {
             when(card.findViewById(id)).thenReturn(mock(MaterialButton.class));
         }
         AppListAdapter.ViewHolder holder = adapter.new ViewHolder(card);
+        for (MaterialButton button : new MaterialButton[] {holder.modeBack, holder.modeBackground, holder.modeDirect}) {
+            verify(button).setSingleLine(false);
+            verify(button).setMaxLines(3);
+            verify(button).setEllipsize(null);
+        }
         holder.entry = new AppEntry("Example", "example.app", null);
         ArgumentCaptor<MaterialButtonToggleGroup.OnButtonCheckedListener> captor =
                 ArgumentCaptor.forClass(MaterialButtonToggleGroup.OnButtonCheckedListener.class);

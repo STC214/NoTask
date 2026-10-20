@@ -214,6 +214,8 @@ public class MainHookTest {
         mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
         call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
         call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onPause");
+        org.junit.Assert.assertTrue(delayed.isEmpty());
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onStop");
         org.junit.Assert.assertEquals(1, delayed.size());
         Runnable pending = delayed.get(0); pending.run();
         verify(first).setExcludeFromRecents(true);
@@ -231,7 +233,35 @@ public class MainHookTest {
         mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
         call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
         call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onPause");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onStop");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onDestroy");
         org.junit.Assert.assertTrue(delayed.isEmpty());
+    }
+
+    @Test public void startingReplacementActivityCancelsPendingBackgroundHide() throws Exception {
+        Activity a = mock(Activity.class), b = mock(Activity.class);
+        when(a.getTaskId()).thenReturn(17); when(b.getTaskId()).thenReturn(17);
+        mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, a, "onResume");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, a, "onStop");
+        org.junit.Assert.assertEquals(1, delayed.size());
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, b, "onStart");
+        org.junit.Assert.assertTrue(delayed.isEmpty());
+        call("applyVisibility", new Class<?>[] {String.class}, "replacement_started");
+        verify(first, never()).setExcludeFromRecents(true);
+    }
+
+    @Test public void switchingModesCancelsPendingBackgroundHide() throws Exception {
+        Activity activity = mock(Activity.class); when(activity.getTaskId()).thenReturn(17);
+        mode.set(ModuleConfig.MODE_BACKGROUND); change(true); drain();
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onResume");
+        call("handleLifecycle", new Class<?>[] {Activity.class, String.class}, activity, "onStop");
+        org.junit.Assert.assertEquals(1, delayed.size());
+        mode.set(ModuleConfig.MODE_BACK);
+        listener.onSharedPreferenceChanged(preferences, ModuleConfig.modeKey("example.app")); drain();
+        org.junit.Assert.assertTrue(delayed.isEmpty());
+        verify(first, never()).setExcludeFromRecents(true);
+        verify(first).setExcludeFromRecents(false);
     }
 
     @Test public void keyBackHookHidesBeforeOriginalAndDoesNotConsumeIt() throws Throwable {

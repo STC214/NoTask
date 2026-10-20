@@ -41,16 +41,21 @@ final class InstalledApps {
                 continue;
             }
 
-            CharSequence rawLabel = resolveInfo.loadLabel(packageManager);
-            String label = rawLabel == null ? packageName : rawLabel.toString().trim();
-            if (label.isEmpty()) {
-                label = packageName;
+            try {
+                CharSequence rawLabel = resolveInfo.loadLabel(packageManager);
+                String label = rawLabel == null ? packageName : rawLabel.toString().trim();
+                if (label.isEmpty()) {
+                    label = packageName;
+                }
+                Drawable icon = resolveInfo.loadIcon(packageManager);
+                if (icon == null) {
+                    icon = packageManager.getDefaultActivityIcon();
+                }
+                entries.put(packageName, new AppEntry(label, packageName, icon));
+            } catch (RuntimeException removedOrBrokenPackage) {
+                // Package resources may disappear between the query and label/icon lookup.
+                // Keep the rest of the list usable, and allow another launcher to be tried.
             }
-            Drawable icon = resolveInfo.loadIcon(packageManager);
-            if (icon == null) {
-                icon = packageManager.getDefaultActivityIcon();
-            }
-            entries.put(packageName, new AppEntry(label, packageName, icon));
         }
 
         List<AppEntry> result = new ArrayList<>(entries.values());

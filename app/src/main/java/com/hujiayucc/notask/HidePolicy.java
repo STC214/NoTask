@@ -6,7 +6,8 @@ import java.util.Set;
 
 /** Main-thread state machine. No Android dependencies; visibility is separate from injection. */
 final class HidePolicy {
-    private final Set<Object> resumed = Collections.newSetFromMap(new IdentityHashMap<>());
+    // Paused Activities can remain visible (dialogs, split screen, translucent windows).
+    private final Set<Object> started = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean enabled = true;
     private int mode = ModuleConfig.MODE_DIRECT;
     private boolean observed;
@@ -19,29 +20,30 @@ final class HidePolicy {
         enabled = nextEnabled;
         mode = nextMode;
         backHidden = false;
-        backgroundHidden = observed && resumed.isEmpty();
+        backgroundHidden = observed && started.isEmpty();
         return true;
     }
 
     void onStart(Object activity) {
         observed = true;
+        started.add(activity);
         backHidden = false;
         backgroundHidden = false;
     }
 
     void onResume(Object activity) {
         observed = true;
-        resumed.add(activity);
+        started.add(activity);
         backHidden = false;
         backgroundHidden = false;
     }
 
-    void onPause(Object activity) { resumed.remove(activity); }
-    void onStop(Object activity) { resumed.remove(activity); }
+    void onPause(Object activity) { /* Still visible until onStop. */ }
+    void onStop(Object activity) { started.remove(activity); }
     void onDestroy(Object activity) { onStop(activity); }
 
     boolean backgroundCandidate() {
-        return enabled && mode == ModuleConfig.MODE_BACKGROUND && observed && resumed.isEmpty();
+        return enabled && mode == ModuleConfig.MODE_BACKGROUND && observed && started.isEmpty();
     }
 
     void confirmBackground() {

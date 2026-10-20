@@ -9,4 +9,10 @@
         <item name="android:textSize">12sp</item><item name="cornerRadius">14dp</item>
         <item name="android:checkable">true</item>
     </style>
+    <style name="Widget.NoTask.ModeButton" parent="Widget.NoTask.ThemeButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:singleLine">false</item>
+        <item name="android:maxLines">3</item>
+        <item name="android:ellipsize">none</item>
+    </style>
 </resources>
